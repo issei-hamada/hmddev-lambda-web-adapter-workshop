@@ -40,7 +40,9 @@ Resources:
         ApiEvents:
           Type: HttpApi
     Metadata:
-      BuildMethod: makefile
+      Dockerfile: Dockerfile
+      DockerContext: ./app
+      DockerTag: latest
 
   ApiLogGroup:
     Type: AWS::Logs::LogGroup
