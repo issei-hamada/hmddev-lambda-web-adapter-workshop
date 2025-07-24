@@ -1,5 +1,12 @@
 # hmddev-lambda-web-adapter-workshop
 
+## 事前作業
+
+```bash
+USER_NAME=isseihamada
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+```
+
 ## AWS SAM インストール
 
 1. **AWS SAM CLIインストーラーのダウンロード**
@@ -26,4 +33,14 @@ sudo ./sam-installation/install
 ```bash
 echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
+```
+
+## ビルド & デプロイ
+
+```bash
+sam build
+```
+
+```bash
+sam deploy --guided --image-repository $(ACCOUNT_ID).dkr.ecr.ap-northeast-1.amazonaws.com/connpassApi-$(USER_NAME)
 ```
