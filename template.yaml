@@ -35,7 +35,7 @@ Resources:
           - Arn
       Environment:
         Variables:
-          CONNPASS_API_KEY: {{resolve:ssm:CONNPASS_API_KEY}}
+          CONNPASS_API_KEY: '{{resolve:ssm:CONNPASS_API_KEY}}'
       Events:
         ApiEvents:
           Type: HttpApi
