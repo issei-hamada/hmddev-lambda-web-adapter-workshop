@@ -1,219 +1,178 @@
-# hmddev-lambda-web-adapter-workshop
+# AWS Lambda Web Adapter Workshop
 
-## 事前作業
+FastAPIアプリケーションをAWS Lambda Web Adapterを使用してAWS Lambdaにデプロイするワークショップです。
 
-```bash
-USER_NAME=isseihamada
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-```
+## 概要
 
-## AWS SAM インストール
+このプロジェクトは、従来のWebアプリケーションをコード変更なしでAWS Lambda上で実行する方法を学ぶためのハンズオンワークショップです。connpassのイベント情報を取得するREST APIを構築し、AWS Lambda Web Adapterを使用してサーバーレス環境にデプロイします。
 
-1. **AWS SAM CLIインストーラーのダウンロード**
-```bash
-wget https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-linux-x86_64.zip
-```
+## 特徴
 
-2. **ファイルの解凍**
-```bash
-unzip aws-sam-cli-linux-x86_64.zip -d sam-installation
-```
-
-3. **インストールの実行**
-```bash
-sudo ./sam-installation/install
-```
-
-   ※ sudo権限がない場合は、ユーザーディレクトリにインストール:
-```bash
-./sam-installation/install --install-dir ~/.local/aws-sam --bin-dir ~/.local/bin
-```
-
-4. **パスの設定** (ユーザーディレクトリにインストールした場合)
-```bash
-echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-```
-
-## ビルド & デプロイ
-
-```bash
-sam build
-```
-
-```bash
-sam deploy --guided --image-repository $(ACCOUNT_ID).dkr.ecr.ap-northeast-1.amazonaws.com/connpassApi-$(USER_NAME)
-```
-
-# Lambda Web Adapter デプロイ手順
-
-このドキュメントでは、AWS CLIとCloudFormationを使用してLambda Web Adapterアプリケーションをデプロイする手順を説明します。
+- **FastAPI**: 高性能なPython Webフレームワーク
+- **AWS Lambda Web Adapter**: 標準的なWebアプリケーションをLambdaで実行
+- **コンテナベース**: DockerコンテナとしてLambdaにデプロイ
+- **AWS SAM**: Infrastructure as Codeによる簡単なデプロイ
 
 ## 前提条件
 
-- AWS CLIがインストールされ、設定済みであること
-- Dockerがインストールされ、実行中であること
-- 適切なAWS権限（ECR、Lambda、API Gateway、CloudFormation）を持つIAMユーザーまたはロール
+- Python 3.12
+- AWS CLI設定済み
+- AWS SAM CLI
+- Docker
+- AWSアカウント（Lambda、API Gateway、ECRの権限）
 
-## デプロイ手順
+## クイックスタート
 
-### 1. 環境変数の設定
-
-まず、デプロイに必要な環境変数を設定します：
-
-```bash
-export USER_NAME="jiroegami"
-export REGION="ap-northeast-1"
-export ECR_REPO_NAME=${USER_NAME}"-api"
-export STACK_NAME=${USER_NAME}"-lambda-web-adapter-stack"
-export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-```
-
-### 2. ECRリポジトリの作成
-
-Dockerイメージを保存するためのECRリポジトリを作成します：
+### 1. リポジトリのクローン
 
 ```bash
-aws ecr create-repository --repository-name $ECR_REPO_NAME --region $REGION
+git clone <repository-url>
+cd hmddev-lambda-web-adapter-workshop
 ```
 
-### 3. ECRへのログイン
-
-DockerクライアントをECRにログインさせます：
+### 2. ローカル開発環境のセットアップ
 
 ```bash
-aws ecr get-login-password --region $REGION | \
-    docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+# 仮想環境の作成
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 依存関係のインストール
+pip install -r app/requirements.txt
 ```
 
-warning が出ても、 Login Succeeded と表示されていれば成功
-
-```sh
-WARNING! Your password will be stored unencrypted in /home/sagemaker-user/.docker/config.json.
-Configure a credential helper to remove this warning. See
-https://docs.docker.com/engine/reference/commandline/login/#credential-stores
-
-Login Succeeded
-```
-
-### 4. Dockerイメージのビルド
-
-アプリケーションのDockerイメージをビルドします：
+### 3. ローカルでの実行
 
 ```bash
-docker build -t $ECR_REPO_NAME:latest ./app --network sagemaker
+cd app
+uvicorn main:app --reload --port 8080
 ```
 
-### 5. ECRへのイメージのプッシュ
+ブラウザで `http://localhost:8080/docs` にアクセスして、API仕様を確認できます。
 
-ビルドしたイメージにタグを付けてECRにプッシュします：
+### 4. AWSへのデプロイ
 
 ```bash
-# イメージURIを設定
-export IMAGE_URI=${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${ECR_REPO_NAME}:latest
+# アプリケーションのビルド
+sam build
 
-# タグ付け
-docker tag $ECR_REPO_NAME:latest $IMAGE_URI
+# 初回デプロイ（対話形式）
+sam deploy --guided --role-arn arn:aws:iam::$ACCOUNT_ID:role/workshop-cfn-execution-role
 
-# プッシュ
-docker push $IMAGE_URI
+# 2回目以降のデプロイ
+sam deploy
 ```
 
-### 6. CloudFormationスタックのデプロイ
+## API エンドポイント
 
-CloudFormationテンプレートを使用してリソースをデプロイします：
+デプロイ後、以下のエンドポイントが利用可能になります：
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/events` | イベント一覧を取得（キーワード検索可） |
+| GET | `/events/{event_id}/detail` | イベントの詳細情報を取得 |
+| GET | `/events/pref/{prefecture}` | 都道府県別のイベントを取得 |
+| GET | `/events/group/{subdomain}` | グループ別のイベントを取得 |
+| GET | `/events/count` | イベントの総数を取得 |
+| POST | `/events/filter` | 高度なフィルタリング |
+
+### 使用例
 
 ```bash
-aws cloudformation deploy \
-    --template-file template.yaml \
-    --stack-name $STACK_NAME \
-    --parameter-overrides ImageUri=$IMAGE_URI \
-    --region $REGION
+# イベント一覧の取得
+curl https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/events
+
+# キーワード検索
+curl https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/events?keyword=Python
+
+# イベント詳細の取得
+curl https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/events/123456/detail
+
+# 東京都のイベントを取得
+curl https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/events/pref/tokyo
 ```
 
-### 7. デプロイの確認
+## プロジェクト構成
 
-スタックのデプロイが完了したら、出力を確認します：
-
-```bash
-aws cloudformation describe-stacks \
-    --stack-name $STACK_NAME \
-    --region $REGION \
-    --query 'Stacks[0].Outputs' \
-    --output table
+```
+.
+├── app/                    # アプリケーションコード
+│   ├── main.py            # FastAPIアプリケーション
+│   ├── requirements.txt   # Python依存関係
+│   └── Dockerfile         # コンテナ定義
+├── docs/                  # ワークショップドキュメント
+│   └── README.md          # 詳細な手順書
+├── template.yaml          # AWS SAMテンプレート
+├── samconfig.toml         # SAMデプロイ設定
+└── CLAUDE.md              # Claude Code用ガイド
 ```
 
-### 8. APIエンドポイントの確認
+## アーキテクチャ
 
-API Gatewayのエンドポイントを取得します：
-
-```bash
-aws cloudformation describe-stacks \
-    --stack-name $STACK_NAME \
-    --region $REGION \
-    --query 'Stacks[0].Outputs[?OutputKey==`ApiURL`].OutputValue' \
-    --output text
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│   Client    │────▶│ API Gateway  │────▶│    Lambda       │
+└─────────────┘     └──────────────┘     │  ┌───────────┐  │
+                                          │  │ Web       │  │
+                                          │  │ Adapter   │  │
+                                          │  ├───────────┤  │
+                                          │  │ FastAPI   │  │
+                                          │  │ + Uvicorn │  │
+                                          │  └───────────┘  │
+                                          └─────────────────┘
+                                                    │
+                                                    ▼
+                                          ┌─────────────────┐
+                                          │ Connpass API    │
+                                          │ (via proxy)     │
+                                          └─────────────────┘
 ```
 
-## アプリケーションのテスト
+## 環境変数
 
-デプロイが完了したら、以下のコマンドでAPIをテストできます：
+アプリケーションは以下の環境変数を使用します：
 
-```bash
-API_URL=$(aws cloudformation describe-stacks \
-    --stack-name $STACK_NAME \
-    --region $REGION \
-    --query 'Stacks[0].Outputs[?OutputKey==`ApiURL`].OutputValue' \
-    --output text)
+- `API_KEY`: Connpass APIキー（AWS Systems Manager Parameter Storeから取得）
 
-curl $API_URL
-```
+## セキュリティ考慮事項
 
-## クリーンアップ
-
-リソースを削除する場合は、以下のコマンドを実行します：
-
-```bash
-# CloudFormationスタックの削除
-aws cloudformation delete-stack \
-    --stack-name $STACK_NAME \
-    --region $REGION
-
-# スタックの削除完了を待つ
-aws cloudformation wait stack-delete-complete \
-    --stack-name $STACK_NAME \
-    --region $REGION
-
-# ECRリポジトリの削除（オプション）
-aws ecr delete-repository \
-    --repository-name $ECR_REPO_NAME \
-    --region $REGION \
-    --force
-```
+- APIキーはParameter Storeで安全に管理
+- 本番環境では適切なCORS設定が必要
+- API Gatewayでのレート制限の設定を推奨
 
 ## トラブルシューティング
 
-### Dockerソケットエラー（SageMaker環境）
-
-SageMaker環境でDockerソケットエラーが発生する場合：
+### デプロイエラー
 
 ```bash
-export DOCKER_HOST=unix:///docker/proxy.sock
+# CloudFormationスタックの状態確認
+aws cloudformation describe-stacks --stack-name sam-app
+
+# Lambda関数のログ確認
+sam logs -n EventFunction --stack-name sam-app --tail
 ```
 
-### スタックのデプロイエラー
+### ローカル実行時のエラー
 
-デプロイ中にエラーが発生した場合、以下のコマンドでイベントを確認できます：
+- ポート8080が使用中でないか確認
+- 仮想環境が有効化されているか確認
+- 依存関係が正しくインストールされているか確認
 
-```bash
-aws cloudformation describe-stack-events \
-    --stack-name $STACK_NAME \
-    --region $REGION \
-    --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`]'
-```
+## 詳細なワークショップ手順
 
-## 注意事項
+より詳細な手順については、[docs/README.md](docs/README.md)を参照してください。
 
-- `CONNPASS_API_KEY`パラメータはSSM Parameter Storeに事前に設定する必要があります
-- Lambda関数のメモリサイズやタイムアウト値は必要に応じて`cloudformation-template.yaml`で調整してください
-- API Gatewayはデフォルトですべてのパスとメソッドを受け入れます（`$default`ルート）
+## ライセンス
+
+このプロジェクトはワークショップ用の教育目的で作成されています。
+
+## 貢献
+
+Issue や Pull Request は歓迎します。
+
+## 参考リンク
+
+- [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/)
+- [Connpass API](https://connpass.com/about/api/)
