@@ -83,6 +83,47 @@ cd hmddev-lambda-web-adapter-workshop/
 sam build
 ```
 
+#### **Tips:** sam build コマンドで実行される処理
+
+`sam build` コマンドは以下の処理を自動的に実行します：
+
+1. **Dockerfile の読み込み**
+   - `app/Dockerfile` を読み込み、Docker イメージのビルド準備
+
+2. **Docker イメージのビルド**
+   - ベースイメージ（`public.ecr.aws/lambda/python:3.12`）の取得
+   - Lambda Web Adapter のコピー
+   - Python 依存関係（requirements.txt）のインストール
+   - アプリケーションコード（main.py）のコピー
+   - 実行コマンドの設定
+
+3. **ビルド成果物の生成**
+   - `.aws-sam/build` ディレクトリにビルド結果を保存
+   - デプロイ可能な形式にパッケージング
+
+これにより、FastAPI アプリケーションが Lambda で動作する Docker イメージが作成されます。
+
+### **Tips:** Lambda Web Adapter の実装方法
+
+Lambda Web Adapter は、通常の Web アプリケーションを AWS Lambda 上で動かすためのアダプターです。
+
+#### 実装のポイント
+
+1. **Dockerfile での設定**
+    - Lambda Web Adapter のレイヤーを COPY で追加
+      - `COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/`
+    - アプリケーションをポート 8080 で起動
+
+2. **template.yaml での設定**
+    - Function の Type を `Image` に設定
+    - Dockerfile の場所を指定
+    - API Gateway との統合設定
+
+3. **動作の仕組み**
+    - Lambda Web Adapter が Lambda のイベントを HTTP リクエストに変換
+    - FastAPI アプリケーションが通常の Web サーバーとして動作
+    - レスポンスを Lambda の形式に自動変換
+
 ---
 
 ## 4. デプロイ
@@ -124,6 +165,33 @@ Successful! のようなメッセージが表示された場合、デプロイ�
 
 これがデプロイされた API の URL です。
 
+#### **Tips:** sam deploy コマンドで実行される処理
+
+`sam deploy` コマンドは以下の処理を自動的に実行します：
+
+1. **Docker イメージのプッシュ**
+   - ビルドした Docker イメージを Amazon ECR（Elastic Container Registry）にアップロード
+   - ECR リポジトリが存在しない場合は自動作成
+
+2. **CloudFormation スタックの作成/更新**
+   - `template.yaml` を CloudFormation テンプレートに変換
+   - 以下のリソースを作成：
+     - Lambda 関数（Docker イメージベース）
+     - API Gateway HTTP API
+     - IAM ロール（Lambda 実行用）
+     - CloudWatch Logs ロググループ
+
+3. **リソースの関連付け**
+   - API Gateway と Lambda 関数の統合設定
+   - Lambda 関数への環境変数の設定（API_KEY など）
+   - 必要な権限の付与
+
+4. **エンドポイントの生成**
+   - API Gateway のエンドポイント URL を自動生成
+   - Lambda 関数へのリクエストをルーティング
+
+これらの処理により、FastAPI アプリケーションが AWS 上で公開されます。
+
 ---
 
 ## 5. 動作確認
@@ -161,3 +229,4 @@ curl -X POST -H "Content-Type: application/json" -d "{"keyword" : "xxx" , "prefe
 ```
 
 ハンズオンは以上です。
+時間の余った方は、Appendix.md にも挑戦してみて下さい。
