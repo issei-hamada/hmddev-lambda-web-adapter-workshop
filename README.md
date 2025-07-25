@@ -64,7 +64,7 @@ sam deploy --guided --image-repository $(ACCOUNT_ID).dkr.ecr.ap-northeast-1.amaz
 ```bash
 export USER_NAME="jiroegami"
 export REGION="ap-northeast-1"
-export ECR_REPO_NAME=${USER_NAME}"-API"
+export ECR_REPO_NAME=${USER_NAME}"-api"
 export STACK_NAME=${USER_NAME}"-lambda-web-adapter-stack"
 export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ```
@@ -86,13 +86,22 @@ aws ecr get-login-password --region $REGION | \
     docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
 ```
 
+warning が出ても、 Login Succeeded と表示されていれば成功
+
+```sh
+WARNING! Your password will be stored unencrypted in /home/sagemaker-user/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credential-stores
+
+Login Succeeded
+```
+
 ### 4. Dockerイメージのビルド
 
 アプリケーションのDockerイメージをビルドします：
 
 ```bash
-docker build -t $ECR_REPO_NAME:latest ./app
-cd ..
+docker build -t $ECR_REPO_NAME:latest ./app --network sagemaker
 ```
 
 ### 5. ECRへのイメージのプッシュ
@@ -116,10 +125,9 @@ CloudFormationテンプレートを使用してリソースをデプロイしま
 
 ```bash
 aws cloudformation deploy \
-    --template-file cloudformation-template.yaml \
+    --template-file template.yaml \
     --stack-name $STACK_NAME \
     --parameter-overrides ImageUri=$IMAGE_URI \
-    --capabilities CAPABILITY_IAM \
     --region $REGION
 ```
 
